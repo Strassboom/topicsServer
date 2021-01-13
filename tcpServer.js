@@ -1,17 +1,27 @@
 #!/usr/bin/env node
-var WebSocketServer = require('websocket').server;
-var http = require('http');
+const WebSocketServer = require('websocket').server;
+const http = require('http');
+const express = require('express');
+const cors = require('cors');
+const app = express();
 
-var server = http.createServer(function(request, response) {
+app.use(cors());
+
+app.get('/createSession', (request,response) => {
     console.log((new Date()) + ' Received request for ' + request.url);
-    response.writeHead(404);
-    response.end();
-});
+    response.send('billion');
+})
+
+
+
+const server = http.createServer(app);
+
+
 server.listen(8080, function() {
     console.log((new Date()) + ' Server is listening on port 8080');
 });
 
-wsServer = new WebSocketServer({
+const wsServer = new WebSocketServer({
     httpServer: server,
     // You should not use autoAcceptConnections for production
     // applications, as it defeats all standard cross-origin protection

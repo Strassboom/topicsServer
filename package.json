@@ -24,7 +24,7 @@
     "express": "^4.17.1",
     "pg": "^8.5.1",
     "sequelize": "^6.3.5",
-    "topics-models": "^1.0.2",
+    "topics-models": "^1.0.3",
     "websocket": "^1.0.33"
   }
 }

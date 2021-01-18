@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const dbOperations = require('./lib/dbOperations');
+const Promise = require('bluebird');
 
 app.use(cors());
 
@@ -13,15 +14,16 @@ app.get('/createSession', async (request,response) => {
     // Add sequelize model work here:
 
     //Create sessionId
-    const record = { creationDate: new Date(), shipId: 'fafnir' };
-    record.sessionId = new Buffer.from(`${request.host}:${new Date().getTime()}`).toString('base64');
+    const record = { dateTime: new Date(), shipId: 'fafnir' };
+    record.id = new Buffer.from(`${request.hostname}:${record.dateTime.getTime()}`).toString('base64');
     const sequelizeInstance = require('./lib/sqlConnection');
     const models = require('topics-models').models(sequelizeInstance);
     const model = models['session'];
     console.log((new Date()) + ' Received request for ' + request.url);
-    await dbOperations.sendData({ data: record, model }).then(async function (sendResults) {
-            if (sendResults.error) {
-              console.log(sendResults.error, { sendResults, locationId })
+    await dbOperations.sendData({ data: [record], model }).then(async function (sendResults) {
+        console.log(sendResults);    
+        if (sendResults.error) {
+              console.log(sendResults.error, { sendResults })
             }
         }).catch(async function (error) {
             console.log(error);
@@ -63,15 +65,31 @@ wsServer.on('request', function(request) {
     
     var connection = request.accept('json', request.origin);
     console.log((new Date()) + ' Connection accepted.');
-    connection.on('message', function(message) {
+    connection.on('message', async function(message) {
         if (message.type === 'utf8') {
             console.log('Received Message: ' + message.utf8Data);
             record = JSON.parse(message.utf8Data);
+            // If a session event, send to the db as one
             if (record[0].sessionId){
-                const sequelizeInstance = require('./lib/sqlConnection');
-                const models = require('topics-models').models(sequelizeInstance);
-                const model = models['sessionEvent'];
-                console.log('SEND THIS TO THE DB');
+                await Promise.mapSeries(record, async function(rec) {
+                    rec.id = new Buffer.from(`${request.hostname}:${new Date(rec.dateTime).getTime()}`).toString('base64');
+                    rec.positionX = rec.position.x;
+                    rec.positionY = rec.position.y;
+                    return rec;
+                }).then(async function (record) {
+                    const sequelizeInstance = require('./lib/sqlConnection');
+                    const models = require('topics-models').models(sequelizeInstance);
+                    const model = models['sessionEvent'];
+                    console.log(record);
+                    await dbOperations.sendData({ data: record, model }).then(async function (sendResults) {
+                        console.log(sendResults);    
+                        if (sendResults.error) {
+                              console.log(sendResults.error, { sendResults })
+                            }
+                        }).catch(async function (error) {
+                            console.log(error);
+                        });
+                });
             }
             connection.sendUTF(message.utf8Data);
         }

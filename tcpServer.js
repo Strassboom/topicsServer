@@ -4,18 +4,30 @@ const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const app = express();
+const dbOperations = require('./lib/dbOperations');
 
 app.use(cors());
 
-app.get('/createSession', (request,response) => {
+app.get('/createSession', async (request,response) => {
 
     // Add sequelize model work here:
 
-    const sessionId = 1;
-    const record = { sessionId: sessionId, creationDate: new Date() };
+    //Create sessionId
+    const record = { creationDate: new Date(), shipId: 'fafnir' };
+    record.sessionId = new Buffer.from(`${request.host}:${new Date().getTime()}`).toString('base64');
+    const sequelizeInstance = require('./lib/sqlConnection');
+    const models = require('topics-models').models(sequelizeInstance);
+    const model = models['session'];
     console.log((new Date()) + ' Received request for ' + request.url);
+    await dbOperations.sendData({ data: record, model }).then(async function (sendResults) {
+            if (sendResults.error) {
+              console.log(sendResults.error, { sendResults, locationId })
+            }
+        }).catch(async function (error) {
+            console.log(error);
+        });
     response.send(record);
-})
+});
 
 
 
@@ -53,7 +65,14 @@ wsServer.on('request', function(request) {
     console.log((new Date()) + ' Connection accepted.');
     connection.on('message', function(message) {
         if (message.type === 'utf8') {
-            //console.log('Received Message: ' + message.utf8Data);
+            console.log('Received Message: ' + message.utf8Data);
+            record = JSON.parse(message.utf8Data);
+            if (record[0].sessionId){
+                const sequelizeInstance = require('./lib/sqlConnection');
+                const models = require('topics-models').models(sequelizeInstance);
+                const model = models['sessionEvent'];
+                console.log('SEND THIS TO THE DB');
+            }
             connection.sendUTF(message.utf8Data);
         }
         else if (message.type === 'binary') {
